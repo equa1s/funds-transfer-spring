@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -103,7 +104,7 @@ public class TransferServiceTest {
 
         int numThreads = 10;
 
-        CountDownLatch latch = new CountDownLatch(numThreads);
+        CountDownLatch latch = new CountDownLatch(2 * numThreads);
         List<Thread> threads = new ArrayList<>();
 
         // transfer from 'from' to 'to'
@@ -115,6 +116,14 @@ public class TransferServiceTest {
                 latch.countDown();
             });
             threads.add(threadFromTo);
+
+            Thread threadToFrom = new Thread(() -> {
+                for (int j = 0; j < 10; j++) { // Perform multiple transfers per thread
+                    transferService.transfer(toId, fromId, new BigDecimal("10"));
+                }
+                latch.countDown();
+            });
+            threads.add(threadToFrom);
         }
 
 
@@ -124,9 +133,9 @@ public class TransferServiceTest {
 
         latch.await(); // Wait for all threads to finish
 
-        assertThat(accountsService.getAccount(fromId).getBalance()).isEqualTo(new BigDecimal("0"));
-        assertThat(accountsService.getAccount(toId).getBalance()).isEqualTo(new BigDecimal("2000"));
+        assertThat(accountsService.getAccount(fromId).getBalance()).isEqualTo(new BigDecimal("1000"));
+        assertThat(accountsService.getAccount(toId).getBalance()).isEqualTo(new BigDecimal("1000"));
 
-        Mockito.verify(notificationService, Mockito.times(200)).notifyAboutTransfer(Mockito.any(), Mockito.any());
+        Mockito.verify(notificationService, Mockito.times(400)).notifyAboutTransfer(Mockito.any(), Mockito.any());
     }
 }

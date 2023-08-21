@@ -72,8 +72,19 @@ public class Account {
   }
 
   public void transfer(Account toAccount, BigDecimal amount) {
-    lock.writeLock().lock();
+    Account from = this;
+    Account to = toAccount;
+
+    // keep right order of account to avoid deadlock
+    if (accountId.compareTo(toAccount.getAccountId()) > 0) {
+      from = toAccount;
+      to = this;
+    }
+
     try {
+      from.lock.writeLock().lock();
+      to.lock.writeLock().lock();
+
       if (balance.compareTo(amount) >= 0) {
         withdraw(amount);
         toAccount.deposit(amount);
@@ -81,7 +92,8 @@ public class Account {
         throw new InsufficientBalanceException("Insufficient balance for transfer!");
       }
     } finally {
-      lock.writeLock().unlock();
+      to.lock.writeLock().unlock();
+      from.lock.writeLock().unlock();
     }
   }
 }
